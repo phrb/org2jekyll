@@ -201,7 +201,7 @@ POST-CATEGORIES is the categories."
 :: () -> [(Symbol, String)]"
   (list :author      org2jekyll-blog-author
         :date        (org2jekyll-now)
-        :layout      (org2jekyll--input-read "Layout: " '("post" "default"))
+        :layout      (org2jekyll--input-read "Layout: " '("post" "page"))
         :title       (org2jekyll--read-title)
         :description (org2jekyll--read-description)
         :tags        (org2jekyll--read-tags)
@@ -279,7 +279,7 @@ The `'%s`' will be replaced respectively by the blog entry name, the author, the
 
 (defun org2jekyll-get-options-from-buffer ()
   "Return special lines at the beginning of current buffer."
-  (let ((special-line-regex "^#\\+\\(.+\\):[ \t]+\\(.+\\)$")
+  (let ((special-line-regex "^#\\+\\(.+?\\):[ \t]+\\(.+\\)$")
         (get-current-line (lambda ()
                             (buffer-substring-no-properties (line-beginning-position)
                                                             (line-end-position))))
@@ -294,7 +294,8 @@ The `'%s`' will be replaced respectively by the blog entry name, the author, the
                                               downcase
                                               (concat ":")
                                               intern)
-                                         (match-string 2 (funcall get-current-line))))
+                                         (->> (funcall get-current-line)
+                                              (match-string 2))))
           (unless (= 0 (forward-line))
             (throw 'break nil))))
       options-plist)))
@@ -428,10 +429,7 @@ If unrequired values are missing, they are replaced with dummy
 ones.  Otherwise, display the error messages about the missing
 required values."
   (let* ((buffer-metadata (org2jekyll-get-options-from-file org-file))
-         (org-defaults `(:date ,(org2jekyll-now)
-                               :tags "dummy-tags-should-be-replaced"
-                               :author ""))
-         (merged-metadata (kvplist-merge org-defaults buffer-metadata))
+         (merged-metadata buffer-metadata)
          (categories (org2jekyll--csv-to-yaml (plist-get merged-metadata :categories)))
          (tags (org2jekyll--csv-to-yaml (plist-get merged-metadata :tags)))
          (date (org2jekyll--convert-timestamp-to-yyyy-dd-mm (plist-get merged-metadata :date)))
@@ -442,11 +440,7 @@ required values."
          (yaml-alist (--map (cons (symbol-name (car it))
                                   (cdr it))
                             (kvplist->alist yaml-metadata))))
-    (-if-let (error-messages (org2jekyll-check-metadata buffer-metadata))
-        (format "This org-mode file is missing required header(s):
-%s
-Publication skipped" error-messages)
-      (org2jekyll-remove-org-only-options yaml-alist))))
+    (org2jekyll-remove-org-only-options yaml-alist)))
 
 
 (defun org2jekyll-read-metadata-and-execute (action-fn org-file)
@@ -511,7 +505,7 @@ Publication skipped" error-messages)
 
 (defun org2jekyll-page-p (layout)
   "Determine if the LAYOUT corresponds to a page."
-  (string= "default" layout))
+  (string= "page" layout))
 
 (defun org2jekyll-publish-web-project ()
   "Publish the 'web' project."
@@ -568,7 +562,7 @@ Layout `'default`' is a page."
   (interactive)
   (deferred:$
     (deferred:next
-      (lambda () (->> (assoc "default" org-publish-project-alist)
+      (lambda () (->> (assoc "page" org-publish-project-alist)
                  org-publish-get-base-files
                  (--filter (org2jekyll-page-p (org2jekyll-article-p it))))))
     (deferred:nextc it
